@@ -1,0 +1,2 @@
+# Arduino_regulator_ili9341_SD-2020
+# Arduino_SymulacjaRegulatorObiekt_SD2020
