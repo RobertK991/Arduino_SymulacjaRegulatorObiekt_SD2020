@@ -283,9 +283,9 @@ void TaskRegulator( void *pvParameters )
   parametr parametry;
   lcd_obiekt lcdObiekt;
   //PARAMETRY POCZĄTKOWE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  parametry.KP = 1;
-  parametry.TD = 3;
-  parametry.TI = 5;
+  parametry.KP = 11;
+  parametry.TD = 4;
+  parametry.TI = 0.5;
   parametry.WZ = 70;
   // for (int i=0;i<10;i++)
   //   vTaskDelay(1);
@@ -369,49 +369,43 @@ void TaskObiekt( void *pvParameters )
   //              K1 * K2
   // G(s)= -------------------------
   //        (1 + T1*s)*(1 + T2*s)
-  float K1 = 1,K2 = 2;
+  float K1 = 5, K2 = 2;
   float T1 = 2, T2 = 1;
   //Parametry biorników
-  float k11,k21;
-  float A1 = 14,A2 = 100;            //Powierznia przekroju zbiornika 1 i 2 
-  float sn1 = 12;         //Przekrój przepływowy zaworu 1
-  float sn2 = 30;         //Przekrój przepływowy zaworu 2
-  float hn1 = 30;         //Poziom wody w punkcie pracy
-  float hn2 = 60;         //Poziom wody w punkcie pracy
-  float g = 10;           //Przyśpieszenie ziemskie
-  k11 = sn1*sqrt(g/(2*hn1));
-  k21 = sn2*sqrt(g/(2*hn2));
-  K1 = 1/k11;             //Wzmocnienie 1 zbiornika
-  T1 = A1/k11;            //Stała czasowa 1 zbiornika
-  K2= 1/k21;             //Wzmocnienie 2 zbiornika
-  T2 = A2/k21;            //Stała czasowa 2 zbiornika
-  Serial.println(K1);
-   Serial.println(K2);
-   Serial.println(T1);
-   Serial.println(T2);
+  // float k11,k21;
+  // float A1 = 14,A2 = 100;            //Powierznia przekroju zbiornika 1 i 2 
+  // float sn1 = 12;         //Przekrój przepływowy zaworu 1
+  // float sn2 = 30;         //Przekrój przepływowy zaworu 2
+  // float hn1 = 30;         //Poziom wody w punkcie pracy
+  // float hn2 = 60;         //Poziom wody w punkcie pracy
+  // float g = 10;           //Przyśpieszenie ziemskie
+  // k11 = sn1*sqrt(g/(2*hn1));
+  // k21 = sn2*sqrt(g/(2*hn2));
+  // K1 = 1/k11;             //Wzmocnienie 1 zbiornika
+  // T1 = A1/k11;            //Stała czasowa 1 zbiornika
+  // K2= 1/k21;             //Wzmocnienie 2 zbiornika
+  // T2 = A2/k21;            //Stała czasowa 2 zbiornika
+  // Serial.println(K1);
+  // Serial.println(K2);
+  // Serial.println(T1);
+  // Serial.println(T2);
   TickType_t xLastWakeTime;
   xLastWakeTime = xTaskGetTickCount();
   for (;;)
   {
     xSemaphoreTake( serial_mutex, portMAX_DELAY );
-    // for (int i = 0; i<licznik; i++)
-    // {
-    //   // x1=x10+dt*sygnalSterujacy;
-    //   // wartoscBiezaca=sygnalSterujacy+dt*(5*u0-6*sygnalSterujacy-2*x10);
-    //   // x10 = x1;
-    // }
-    //Obiekt 1
-    // H1 = exp(-h/T1)*h1+K1*(1-exp(-h/12))*sygnalSterujacy;
+    // //Obiekt 1
+    // H1 = exp(-h/T1)*h1+K1*(1-exp(-h/T1))*sygnalSterujacy;
     // h1 = H1;
     // wartoscBiezaca = H1;
     //Obiekt 2
-    H1 = exp(-h/T1)*h1+K1*(1-exp(-h/12))*sygnalSterujacy;
-    H2 = exp(-h/T2)*h2+K2*(1-exp(-h/12))*H1;
+    H1 = exp(-h/T1)*h1+K1*(1-exp(-h/T1))*sygnalSterujacy;
+    H2 = exp(-h/T2)*h2+K2*(1-exp(-h/T2))*h1;
     h1 = H1;
     h2 = H2;
     wartoscBiezaca = H2;
-    // if (wartoscBiezaca <= 0) { wartoscBiezaca = 0;}
-    // if (wartoscBiezaca >= 100) { wartoscBiezaca = 100;}
+    if (wartoscBiezaca <= 0) { wartoscBiezaca = 0;}
+    if (wartoscBiezaca >= 100) { wartoscBiezaca = 100;}
     xSemaphoreGive( serial_mutex );
     //vTaskDelay(1);
     vTaskDelayUntil( &xLastWakeTime, 100/portTICK_PERIOD_MS);
