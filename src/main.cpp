@@ -124,6 +124,7 @@ void loop()
 void TaskEnkoder(void *pvParameters)  //Zadanie enkodera
 {
   TickType_t xLastWakeTime;
+  xLastWakeTime = xTaskGetTickCount();
   float pozycjaEnkoderaOld = 0;        //Stara pozycja enkodera
   (void) pvParameters;
   tft.begin();                                          //  Inicjalizuje wyświetlacz
@@ -140,6 +141,12 @@ void TaskEnkoder(void *pvParameters)  //Zadanie enkodera
   tft.print(Td);
   tft.setCursor(160, 19);    //Napis WZ
   tft.print(Wz);
+  tft.setCursor(0, 100);
+  tft.print("E: ");
+  tft.setCursor(0, 150);
+  tft.print("U: ");
+  tft.setCursor(0, 200);
+  tft.print("Y: ");
   //Zmienne regulatora
   parametr parametry;
   (void) pvParameters;
@@ -163,12 +170,12 @@ void TaskEnkoder(void *pvParameters)  //Zadanie enkodera
     switch (poziomMenu)                             //Sprawdzenie którą zmienną nadpisywać
     {
       case 0:                                       //Zmiana zmiennej Kp
-      parametry.KP = (pozycjaEnkoderaOld/100); 
+      parametry.KP = (pozycjaEnkoderaOld/10); 
       if (parametry.KP<=0)                                    //Ograniczenia zmiennej
       {
         parametry.KP = 0;
       }
-      Serial.println(parametry.KP);
+      // Serial.println(parametry.KP);
       wyswietlanie(40, 1, parametry.KP);                 //Wyświetlanie zmiennej
       // xQueueSend(lcd_parametryKPQueue, &parametry.KP, portMAX_DELAY);
       // xQueueSend(lcd_parametryQueue, &parametry, portMAX_DELAY);
@@ -266,25 +273,20 @@ void TaskRegulator( void *pvParameters )
 {
   (void) pvParameters;
   TickType_t xLastWakeTime;
+  xLastWakeTime = xTaskGetTickCount();
   float up = 0, ui = 0, ud = 0, alfa = 0.3;    //Zmienne poszczególnych członów
   float  roznica = 0, przyrost_ud = 0;    //Zmienne do części różniczkowej
   float suma = 0, sumaStara = 0;                         //Zmienne do częsci całkowej 
   float h = 0.1;            //Okres impulsowania
   float uchyb = 0, uchybStary = 0, udStare = 0;       //Stary uchyb i bieżący;
-  float umax=5000;            //Zmienna do anty-windup
+  float umax=2000;            //Zmienna do anty-windup
   parametr parametry;
   lcd_obiekt lcdObiekt;
   //PARAMETRY POCZĄTKOWE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  parametry.KP = 0.1;
-  parametry.TD = 1;
-  parametry.TI = 0.23;
+  parametry.KP = 1;
+  parametry.TD = 3;
+  parametry.TI = 5;
   parametry.WZ = 70;
-  tft.setCursor(0, 100);
-  tft.print("E: ");
-  tft.setCursor(0, 150);
-  tft.print("U: ");
-  tft.setCursor(0, 200);
-  tft.print("Y: ");
   // for (int i=0;i<10;i++)
   //   vTaskDelay(1);
   for (;;)
@@ -297,25 +299,25 @@ void TaskRegulator( void *pvParameters )
       przyrost_ud = 0;
       uchybStary = 0;
       roznica = 0;
-      sygnalSterujacy = 1;
+      sygnalSterujacy = 0;
       wartoscBiezaca = 0;
     }
     xSemaphoreTake( serial_mutex, portMAX_DELAY );        //Semafor na zmienne regulaltora i obiektu
     //OBliczenia kazdej składowej
     uchyb=parametry.WZ - wartoscBiezaca;              
-    //roznica=(uchyb - uchybStary)/h;
-    //przyrost_ud=(-1/(alfa*parametry.TD))*udStare+(parametry.TD/(alfa*parametry.TD) )*roznica;
+    roznica=(uchyb - uchybStary)/h;
+    przyrost_ud=(-1/(alfa*parametry.TD))*udStare+(parametry.TD/(alfa*parametry.TD) )*roznica;
     suma=uchyb+sumaStara;
     //POszczególne parametry regulatora
     up=parametry.KP*uchyb;
     ui=(h/parametry.TI)*suma;
-    //ud=udStare+h*przyrost_ud;
+    ud=udStare+h*przyrost_ud;
     //Sygnał sterujący
     sygnalSterujacy = up+ui+ud;       
     //Stare wartości
     uchybStary = uchyb;
     sumaStara = suma;
-    //udStare = ud;                                  //Wypisuje wartość
+    udStare = ud;                                  //Wypisuje wartość
     // //anty-windup
     if (sygnalSterujacy<=0) { sygnalSterujacy=0;  suma=uchyb;}
     if (sygnalSterujacy>umax) {sygnalSterujacy=umax; suma-=uchyb;}
@@ -351,22 +353,65 @@ void TaskObiekt( void *pvParameters )
 {
   (void) pvParameters;
   float h = 0.1;
-  float dt = 0.001;
-  float u0 = 10;
-  float x1 = 0, x10 = 0;
-  int licznik = round(h/dt);
+  // float dt = 0.001;
+  // float u0 = 10;
+  // float x1 = 0, x10 = 0;
+  // int licznik = round(h/dt);
+  // float Y;
+  // Transmitancja
+  //          K
+  // G(s)= --------
+  //        1 + Ts
+  // float K = 2;
+  // float T = 3;
+  float H1, H2, h1 = 0, h2 = 0;
+  // Transmitancja
+  //              K1 * K2
+  // G(s)= -------------------------
+  //        (1 + T1*s)*(1 + T2*s)
+  float K1 = 1,K2 = 2;
+  float T1 = 2, T2 = 1;
+  //Parametry biorników
+  float k11,k21;
+  float A1 = 14,A2 = 100;            //Powierznia przekroju zbiornika 1 i 2 
+  float sn1 = 12;         //Przekrój przepływowy zaworu 1
+  float sn2 = 30;         //Przekrój przepływowy zaworu 2
+  float hn1 = 30;         //Poziom wody w punkcie pracy
+  float hn2 = 60;         //Poziom wody w punkcie pracy
+  float g = 10;           //Przyśpieszenie ziemskie
+  k11 = sn1*sqrt(g/(2*hn1));
+  k21 = sn2*sqrt(g/(2*hn2));
+  K1 = 1/k11;             //Wzmocnienie 1 zbiornika
+  T1 = A1/k11;            //Stała czasowa 1 zbiornika
+  K2= 1/k21;             //Wzmocnienie 2 zbiornika
+  T2 = A2/k21;            //Stała czasowa 2 zbiornika
+  Serial.println(K1);
+   Serial.println(K2);
+   Serial.println(T1);
+   Serial.println(T2);
   TickType_t xLastWakeTime;
+  xLastWakeTime = xTaskGetTickCount();
   for (;;)
   {
     xSemaphoreTake( serial_mutex, portMAX_DELAY );
-    for (int i = 0; i<licznik; i++)
-    {
-    x1=x10+dt*sygnalSterujacy;
-    wartoscBiezaca=sygnalSterujacy+dt*(5*u0-6*sygnalSterujacy-2*x10);
-    x10 = x1;
-    }
-    if (wartoscBiezaca <= 0) { wartoscBiezaca = 0;}
-    if (wartoscBiezaca >= 100) { wartoscBiezaca = 100;}
+    // for (int i = 0; i<licznik; i++)
+    // {
+    //   // x1=x10+dt*sygnalSterujacy;
+    //   // wartoscBiezaca=sygnalSterujacy+dt*(5*u0-6*sygnalSterujacy-2*x10);
+    //   // x10 = x1;
+    // }
+    //Obiekt 1
+    // H1 = exp(-h/T1)*h1+K1*(1-exp(-h/12))*sygnalSterujacy;
+    // h1 = H1;
+    // wartoscBiezaca = H1;
+    //Obiekt 2
+    H1 = exp(-h/T1)*h1+K1*(1-exp(-h/12))*sygnalSterujacy;
+    H2 = exp(-h/T2)*h2+K2*(1-exp(-h/12))*H1;
+    h1 = H1;
+    h2 = H2;
+    wartoscBiezaca = H2;
+    // if (wartoscBiezaca <= 0) { wartoscBiezaca = 0;}
+    // if (wartoscBiezaca >= 100) { wartoscBiezaca = 100;}
     xSemaphoreGive( serial_mutex );
     //vTaskDelay(1);
     vTaskDelayUntil( &xLastWakeTime, 100/portTICK_PERIOD_MS);
