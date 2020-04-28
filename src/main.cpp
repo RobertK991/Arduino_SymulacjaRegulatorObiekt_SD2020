@@ -33,7 +33,7 @@ volatile long pozycjaEnkodera = 0;  //Pozycja biezaca enkodera
 
 //Zmienne przycisku
 int przyciskPin = 4;            //pin przycisku
-int poziomMenu = 0;             //poziom menu 
+int poziomMenu = 5;             //poziom menu 
 
 //Zmienne regulatora
 float sygnalSterujacy = 1;      //Wasrtosc sygnalu steruajcego
@@ -175,10 +175,7 @@ void TaskEnkoder(void *pvParameters)  //Zadanie enkodera
       {
         parametry.KP = 0;
       }
-      // Serial.println(parametry.KP);
       wyswietlanie(40, 1, parametry.KP);                 //Wyświetlanie zmiennej
-      // xQueueSend(lcd_parametryKPQueue, &parametry.KP, portMAX_DELAY);
-      // xQueueSend(lcd_parametryQueue, &parametry, portMAX_DELAY);
       break;
       case 1:
       parametry.TI = (pozycjaEnkoderaOld/10); 
@@ -208,8 +205,8 @@ void TaskEnkoder(void *pvParameters)  //Zadanie enkodera
       // xQueueSend(lcd_parametryWZQueue, &parametry.WZ, portMAX_DELAY);
       //  xQueueSend(lcd_parametryQueue, &parametry, portMAX_DELAY);
       break;
-      case 4:                                       //Zmiana zmiennej Td
-      tft.drawLine(0, 38, tft.width(),38, ILI9341_BLACK);  //Czerni starą linię   
+      case 4:                                                   //Wysyłanie parametrów
+      tft.drawLine(0, 38, tft.width(),38, ILI9341_BLACK);       //Czerni starą linię   
       xQueueSend(regulatorQueue, &parametry, portMAX_DELAY);   //Wysyła parametry do regulatora
       poziomMenu = 5;
       break;
@@ -283,10 +280,16 @@ void TaskRegulator( void *pvParameters )
   parametr parametry;
   lcd_obiekt lcdObiekt;
   //PARAMETRY POCZĄTKOWE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  parametry.KP = 11;
-  parametry.TD = 4;
-  parametry.TI = 0.5;
-  parametry.WZ = 70;
+  parametry.KP = 0.5;
+  parametry.TD = 0.2;
+  parametry.TI = 1.4;
+  parametry.WZ = 0;
+  wyswietlanie(40, 1, parametry.KP);
+  wyswietlanie(200, 1, parametry.TI);
+  wyswietlanie(40, 19, parametry.TD);
+  vTaskDelay(1);
+  wyswietlanie(200, 19, parametry.WZ);
+  tft.drawLine(0, 38, tft.width(),38, ILI9341_BLACK);
   // for (int i=0;i<10;i++)
   //   vTaskDelay(1);
   for (;;)
@@ -299,8 +302,8 @@ void TaskRegulator( void *pvParameters )
       przyrost_ud = 0;
       uchybStary = 0;
       roznica = 0;
-      sygnalSterujacy = 0;
-      wartoscBiezaca = 0;
+      // sygnalSterujacy = 0;
+      // wartoscBiezaca = 0;
     }
     xSemaphoreTake( serial_mutex, portMAX_DELAY );        //Semafor na zmienne regulaltora i obiektu
     //OBliczenia kazdej składowej
@@ -369,8 +372,8 @@ void TaskObiekt( void *pvParameters )
   //              K1 * K2
   // G(s)= -------------------------
   //        (1 + T1*s)*(1 + T2*s)
-  float K1 = 5, K2 = 2;
-  float T1 = 2, T2 = 1;
+  float K1 = 1, K2 = 2;
+  float T1 = 4, T2 = 7;
   //Parametry biorników
   // float k11,k21;
   // float A1 = 14,A2 = 100;            //Powierznia przekroju zbiornika 1 i 2 
